@@ -1,4 +1,4 @@
-# AWS Instructions
+# AWS IoT Core Instructions
 
 Goto AWS IoT Core
 
