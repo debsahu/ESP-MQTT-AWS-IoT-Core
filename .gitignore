@@ -1,0 +1,6 @@
+.pio
+.pioenvs
+.piolibdeps
+.vscode
+Adruino/MQTT/secrets.h
+Adruino/PubSubClient/secrets.h
