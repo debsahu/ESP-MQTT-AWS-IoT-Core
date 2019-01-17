@@ -17,6 +17,9 @@ ESP8266
 - Use ESP8266 Arduino Core version **2.5.0-beta2 or greater**
 - Will **NOT** work on ESP8266 Arduino Core v2.4.2 !!!
 
+ESP32
+- Use the latest release version
+
 ### Libraries Needed
 
 [platformio.ini](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/platformio.ini) is included, use [PlatformIO](https://platformio.org/platformio-ide) and it will take care of installing the following libraries.
