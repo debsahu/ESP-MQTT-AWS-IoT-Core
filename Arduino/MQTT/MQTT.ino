@@ -6,67 +6,17 @@
 #error Platform not supported
 #endif
 #include <WiFiClientSecure.h>
-#include <MQTT.h>
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson (use v6.xx)
 #include <time.h>
 #include <Ticker.h>
+#define emptyString String()
 
-#include "secrets.h" //comment to fill out values here ▼
+#include "secrets.h"
 
-#ifndef SECRET
-const char ssid[] = "WiFiSSID";
-const char pass[] = "WiFiPASS";
-
-#define THINGNAME "WelcomeTest"
-
-int8_t TIME_ZONE = -5; //NYC(USA): -5 UTC
-//#define USE_SUMMER_TIME_DST  //uncomment to use DST
-
-const char MQTT_HOST[] = "xxxxxxxxx.iot.us-east-1.amazonaws.com";
-
-// Obtain First CA certificate for Amazon AWS
-// https://docs.aws.amazon.com/iot/latest/developerguide/managing-device-certs.html#server-authentication
-// Copy contents from CA certificate here ▼
-static const char cacert[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END CERTIFICATE-----
-)EOF";
-
-// Copy contents from XXXXXXXX-certificate.pem.crt here ▼
-static const char client_cert[] PROGMEM = R"KEY(
------BEGIN CERTIFICATE-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END CERTIFICATE-----
-)KEY";
-
-// Copy contents from  XXXXXXXX-private.pem.key here ▼
-static const char privkey[] PROGMEM = R"KEY(
------BEGIN RSA PRIVATE KEY-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END RSA PRIVATE KEY-----
-)KEY";
-
+#define USE_PUB_SUB
+#ifndef PIO_PLATFORM
+//#define USE_PUB_SUB  //uncomment to use PubSubClient(https://github.com/knolleary/pubsubclient)
 #endif
-//////////////////////////////////////////////////////
 
 #if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR == 7)
 #error "Install ArduinoJson v6.7.0-beta"
@@ -87,7 +37,15 @@ WiFiClientSecure net;
 #else
 BearSSL::WiFiClientSecure net;
 #endif
+
+#ifdef USE_PUB_SUB
+#include <PubSubClient.h>
+PubSubClient client(net);
+#else
+#include <MQTT.h>
 MQTTClient client;
+#endif
+
 Ticker tkReconnectMQTT;
 
 unsigned long lastMillis = 0;
@@ -112,42 +70,101 @@ void NTPConnect(void)
   Serial.print(asctime(&timeinfo));
 }
 
-void lwMQTTErr(lwmqtt_err_t reason)
+#ifdef USE_PUB_SUB
+
+void messageReceivedPubSub(char *topic, byte *payload, unsigned int length)
 {
-  if (reason == lwmqtt_err_t::LWMQTT_SUCCESS)
-    Serial.println("Success");
-  else if (reason == lwmqtt_err_t::LWMQTT_BUFFER_TOO_SHORT)
-    Serial.println("Buffer too short");
-  else if (reason == lwmqtt_err_t::LWMQTT_VARNUM_OVERFLOW)
-    Serial.println("Varnum overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_CONNECT)
-    Serial.println("Network failed connect");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_TIMEOUT)
-    Serial.println("Network timeout");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_READ)
-    Serial.println("Network failed read");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_WRITE)
-    Serial.println("Network failed write");
-  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_OVERFLOW)
-    Serial.println("Remaining length overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_MISMATCH)
-    Serial.println("Remaining length mismatch");
-  else if (reason == lwmqtt_err_t::LWMQTT_MISSING_OR_WRONG_PACKET)
-    Serial.println("Missing or wrong packet");
-  else if (reason == lwmqtt_err_t::LWMQTT_CONNECTION_DENIED)
-    Serial.println("Connection denied");
-  else if (reason == lwmqtt_err_t::LWMQTT_FAILED_SUBSCRIPTION)
-    Serial.println("Failed subscription");
-  else if (reason == lwmqtt_err_t::LWMQTT_SUBACK_ARRAY_OVERFLOW)
-    Serial.println("Suback array overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_PONG_TIMEOUT)
-    Serial.println("Pong timeout");
+  Serial.print("Received [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
 }
+
+void pubSubErr(int8_t MQTTErr)
+{
+  if (MQTTErr == MQTT_CONNECTION_TIMEOUT)
+    Serial.print("Connection tiemout");
+  else if (MQTTErr == MQTT_CONNECTION_LOST)
+    Serial.print("Connection lost");
+  else if (MQTTErr == MQTT_CONNECT_FAILED)
+    Serial.print("Connect failed");
+  else if (MQTTErr == MQTT_DISCONNECTED)
+    Serial.print("Disconnected");
+  else if (MQTTErr == MQTT_CONNECTED)
+    Serial.print("Connected");
+  else if (MQTTErr == MQTT_CONNECT_BAD_PROTOCOL)
+    Serial.print("Connect bad protocol");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CLIENT_ID)
+    Serial.print("Connect bad Client-ID");
+  else if (MQTTErr == MQTT_CONNECT_UNAVAILABLE)
+    Serial.print("Connect unavailable");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CREDENTIALS)
+    Serial.print("Connect bad credentials");
+  else if (MQTTErr == MQTT_CONNECT_UNAUTHORIZED)
+    Serial.print("Connect unauthorized");
+}
+
+#else
 
 void messageReceived(String &topic, String &payload)
 {
   Serial.println("Recieved [" + topic + "]: " + payload);
 }
+
+void lwMQTTErr(lwmqtt_err_t reason)
+{
+  if (reason == lwmqtt_err_t::LWMQTT_SUCCESS)
+    Serial.print("Success");
+  else if (reason == lwmqtt_err_t::LWMQTT_BUFFER_TOO_SHORT)
+    Serial.print("Buffer too short");
+  else if (reason == lwmqtt_err_t::LWMQTT_VARNUM_OVERFLOW)
+    Serial.print("Varnum overflow");
+  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_CONNECT)
+    Serial.print("Network failed connect");
+  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_TIMEOUT)
+    Serial.print("Network timeout");
+  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_READ)
+    Serial.print("Network failed read");
+  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_WRITE)
+    Serial.print("Network failed write");
+  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_OVERFLOW)
+    Serial.print("Remaining length overflow");
+  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_MISMATCH)
+    Serial.print("Remaining length mismatch");
+  else if (reason == lwmqtt_err_t::LWMQTT_MISSING_OR_WRONG_PACKET)
+    Serial.print("Missing or wrong packet");
+  else if (reason == lwmqtt_err_t::LWMQTT_CONNECTION_DENIED)
+    Serial.print("Connection denied");
+  else if (reason == lwmqtt_err_t::LWMQTT_FAILED_SUBSCRIPTION)
+    Serial.print("Failed subscription");
+  else if (reason == lwmqtt_err_t::LWMQTT_SUBACK_ARRAY_OVERFLOW)
+    Serial.print("Suback array overflow");
+  else if (reason == lwmqtt_err_t::LWMQTT_PONG_TIMEOUT)
+    Serial.print("Pong timeout");
+}
+
+void lwMQTTErrConnection(lwmqtt_return_code_t reason)
+{
+  if (reason == lwmqtt_return_code_t::LWMQTT_CONNECTION_ACCEPTED)
+    Serial.print("Connection Accepted");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_UNACCEPTABLE_PROTOCOL)
+    Serial.print("Unacceptable Protocol");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_IDENTIFIER_REJECTED)
+    Serial.print("Identifier Rejected");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_SERVER_UNAVAILABLE)
+    Serial.print("Server Unavailable");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_BAD_USERNAME_OR_PASSWORD)
+    Serial.print("Bad UserName/Password");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_NOT_AUTHORIZED)
+    Serial.print("Not Authorized");
+  else if (reason == lwmqtt_return_code_t::LWMQTT_UNKNOWN_RETURN_CODE)
+    Serial.print("Unknown Return Code");
+}
+#endif
 
 void connectToMqtt(bool nonBlocking = false)
 {
@@ -159,12 +176,20 @@ void connectToMqtt(bool nonBlocking = false)
       Serial.println("connected!");
       tkReconnectMQTT.detach();
       if (!client.subscribe(MQTT_SUB_TOPIC))
+#ifdef USE_PUB_SUB
+        pubSubErr(client.state());
+#else
         lwMQTTErr(client.lastError());
+#endif
     }
     else
     {
       Serial.print("failed, reason -> ");
-      lwMQTTErr(client.lastError());
+#ifdef USE_PUB_SUB
+      pubSubErr(client.state());
+#else
+      lwMQTTErrConnection(client.returnCode());
+#endif
       if (!nonBlocking)
       {
         Serial.println(" < try again in 5 seconds");
@@ -182,13 +207,15 @@ void connectToMqtt(bool nonBlocking = false)
 
 void connectToWiFi(String init_str)
 {
-  Serial.print(init_str);
+  if (init_str != emptyString)
+    Serial.print(init_str);
   while (WiFi.status() != WL_CONNECTED)
   {
     Serial.print(".");
     delay(1000);
   }
-  Serial.println("ok!");
+  if (init_str != emptyString)
+    Serial.println("ok!");
 }
 
 void checkWiFiThenMQTT(void)
@@ -199,8 +226,9 @@ void checkWiFiThenMQTT(void)
 
 void checkWiFiThenMQTTNonBlocking(void)
 {
-  connectToWiFi("Checking WiFi");
-  if(!tkReconnectMQTT.active()) tkReconnectMQTT.attach(5, connectToMqtt, true);
+  connectToWiFi(emptyString);
+  if (!tkReconnectMQTT.active())
+    tkReconnectMQTT.attach(5, connectToMqtt, true);
 }
 
 void checkWiFiThenReboot(void)
@@ -222,8 +250,13 @@ void sendData(void)
   Serial.println();
   char shadow[measureJson(root) + 1];
   serializeJson(root, shadow, sizeof(shadow));
+#ifdef USE_PUB_SUB
+  if (!client.publish(MQTT_PUB_TOPIC, shadow, false))
+    pubSubErr(client.state());
+#else
   if (!client.publish(MQTT_PUB_TOPIC, shadow, false, 0))
     lwMQTTErr(client.lastError());
+#endif
 }
 
 void setup()
@@ -255,9 +288,13 @@ void setup()
   net.setClientRSACert(&client_crt, &key);
 #endif
 
+#ifdef USE_PUB_SUB
+  client.setServer(MQTT_HOST, MQTT_PORT);
+  client.setCallback(messageReceivedPubSub);
+#else
   client.begin(MQTT_HOST, MQTT_PORT, net);
   client.onMessage(messageReceived);
-
+#endif
   connectToMqtt();
 }
 
@@ -266,9 +303,14 @@ void loop()
   now = time(nullptr);
   if (!client.connected())
   {
+//Not sure why reconnecting to AWS via MQTT does not work correctly on ESP8266
+//Something to do with BearSSL::WiFiClientSecure, go figure!
+#ifdef ESP32
+    checkWiFiThenMQTT(); //either methods should be ok
+                         //checkWiFiThenMQTTNonBlocking(); //either methods should be ok
+#else
     checkWiFiThenReboot();
-    //checkWiFiThenMQTT(); //not sure why reconnecting to AWS via MQTT does not work correctly
-    //checkWiFiThenMQTTNonBlocking(); //not sure why recoinnecting to AWS via MQTT does not work correctly
+#endif
   }
   else
   {
