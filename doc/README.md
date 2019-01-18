@@ -25,6 +25,8 @@ Goto [AWS IoT Core](https://console.aws.amazon.com/iot) on your [AWS console](ht
 
 3. Thing Name
 - Provide a **Name** to the Thing
+- Copy thing name into **THINGNAME**
+- Click **Next**
 ![3-thing-name](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/3-thing-name.png)
 
 4. Create Certificates
@@ -47,7 +49,7 @@ Download the following
 
 8. Interact with AWs IoT Core
 - look for HTTP end point and copt it into **MQTT_HOST[]**
-- Copy thing name into **THINGNAME**
+- Copy thing name into **THINGNAME** (same name from step 3)
 ![8-thing-endpoint](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/8-thing-endpoint.png)
 
 
