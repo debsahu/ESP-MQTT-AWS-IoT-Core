@@ -1,7 +1,7 @@
 # ESP-MQTT-AWS-IoT-Core
 Arduino examples of connecting ESP8266/ESP32 to AWS IOT Core
 
-[![Build Status](https://travis-ci.com/debsahu/ESP-MQTT-AWS-IoT-Core.svg?branch=master)](https://travis-ci.com/debsahu/ESP-MQTT-AWS-IoT-Core) [![License: MIT](https://img.shields.io/github/license/debsahu/ESP-MQTT-AWS-IoT-Core.svg)](https://opensource.org/licenses/MIT) [![LastCommit](https://img.shields.io/github/last-commit/debsahu/ESP-MQTT-AWS-IoT-Core?style=social)](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/commits/master)
+[![Build Status](https://travis-ci.com/debsahu/ESP-MQTT-AWS-IoT-Core.svg?branch=master)](https://travis-ci.com/debsahu/ESP-MQTT-AWS-IoT-Core) [![License: MIT](https://img.shields.io/github/license/debsahu/ESP-MQTT-AWS-IoT-Core.svg)](https://opensource.org/licenses/MIT) [![LastCommit](https://img.shields.io/github/last-commit/debsahu/ESP-MQTT-AWS-IoT-Core.svg?style=social)](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/commits/master)
 
 ----------------
 ## Youtube
