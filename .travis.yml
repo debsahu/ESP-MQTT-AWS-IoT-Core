@@ -6,7 +6,7 @@ cache:
     directories:
         - "~/.platformio"
 env:
-    - PLATFORMIO_CI_SRC=Arduino/MQTT
+    - PLATFORMIO_CI_SRC=Arduino/ChooseMQTTPubSub
 install:
     - pip install -U platformio
     - platformio update
