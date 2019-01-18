@@ -30,11 +30,8 @@ uint8_t DST = 1;
 uint8_t DST = 0;
 #endif
 
-#ifdef ESP32
 WiFiClientSecure net;
-#else
-BearSSL::WiFiClientSecure net;
-#endif
+
 PubSubClient client(net);
 Ticker tkReconnectMQTT;
 
