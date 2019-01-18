@@ -1,6 +1,6 @@
 # AWS IoT Core Instructions
 
-Goto AWS IoT Core
+Goto [AWS IoT Core](https://console.aws.amazon.com/iot) on your AWS console
 
 ## Create a Policy
 
