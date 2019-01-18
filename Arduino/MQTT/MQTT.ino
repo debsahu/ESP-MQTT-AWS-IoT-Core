@@ -15,7 +15,6 @@
 //Enter values in secrets.h ▼
 #include "secrets.h"
 
-#define USE_PUB_SUB
 #ifndef PIO_PLATFORM
 //#define USE_PUB_SUB  //uncomment to use PubSubClient(https://github.com/knolleary/pubsubclient)
 #endif
@@ -42,6 +41,9 @@ BearSSL::WiFiClientSecure net;
 
 #ifdef USE_PUB_SUB
 #include <PubSubClient.h>
+#ifdef PIO_PLATFORM // PIO has issues, needs MQTT.h definition or else freaks out
+#include <MQTT.h>
+#endif
 PubSubClient client(net);
 #else
 #include <MQTT.h>
