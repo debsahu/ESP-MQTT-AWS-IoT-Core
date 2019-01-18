@@ -11,6 +11,8 @@
 #include <Ticker.h>
 #define emptyString String()
 
+//Follow instructions from https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/README.md
+//Enter values in secrets.h ▼
 #include "secrets.h"
 
 #define USE_PUB_SUB
