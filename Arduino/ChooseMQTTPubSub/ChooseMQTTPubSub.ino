@@ -6,7 +6,6 @@
 #error Platform not supported
 #endif
 #include <WiFiClientSecure.h>
-#include <MQTT.h>
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson (use v6.xx)
 #include <time.h>
 #include <Ticker.h>
@@ -15,6 +14,10 @@
 //Follow instructions from https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/README.md
 //Enter values in secrets.h ▼
 #include "secrets.h"
+
+#ifndef PIO_PLATFORM
+//#define USE_PUB_SUB  //uncomment to use PubSubClient(https://github.com/knolleary/pubsubclient)
+#endif
 
 #if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR == 7)
 #error "Install ArduinoJson v6.7.0-beta"
@@ -35,7 +38,18 @@ WiFiClientSecure net;
 #else
 BearSSL::WiFiClientSecure net;
 #endif
+
+#ifdef USE_PUB_SUB
+#include <PubSubClient.h>
+#if defined(USE_PUB_SUB) and defined(PIO_PLATFORM) // PIO has issues, needs MQTT.h definition or else freaks out
+#include <MQTT.h>
+#endif
+PubSubClient client(net);
+#else
+#include <MQTT.h>
 MQTTClient client;
+#endif
+
 Ticker tkReconnectMQTT;
 
 unsigned long lastMillis = 0;
@@ -59,6 +73,46 @@ void NTPConnect(void)
   Serial.print("Current time: ");
   Serial.print(asctime(&timeinfo));
 }
+
+#ifdef USE_PUB_SUB
+
+void messageReceivedPubSub(char *topic, byte *payload, unsigned int length)
+{
+  Serial.print("Received [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
+
+void pubSubErr(int8_t MQTTErr)
+{
+  if (MQTTErr == MQTT_CONNECTION_TIMEOUT)
+    Serial.print("Connection tiemout");
+  else if (MQTTErr == MQTT_CONNECTION_LOST)
+    Serial.print("Connection lost");
+  else if (MQTTErr == MQTT_CONNECT_FAILED)
+    Serial.print("Connect failed");
+  else if (MQTTErr == MQTT_DISCONNECTED)
+    Serial.print("Disconnected");
+  else if (MQTTErr == MQTT_CONNECTED)
+    Serial.print("Connected");
+  else if (MQTTErr == MQTT_CONNECT_BAD_PROTOCOL)
+    Serial.print("Connect bad protocol");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CLIENT_ID)
+    Serial.print("Connect bad Client-ID");
+  else if (MQTTErr == MQTT_CONNECT_UNAVAILABLE)
+    Serial.print("Connect unavailable");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CREDENTIALS)
+    Serial.print("Connect bad credentials");
+  else if (MQTTErr == MQTT_CONNECT_UNAUTHORIZED)
+    Serial.print("Connect unauthorized");
+}
+
+#else
 
 void messageReceived(String &topic, String &payload)
 {
@@ -114,6 +168,7 @@ void lwMQTTErrConnection(lwmqtt_return_code_t reason)
   else if (reason == lwmqtt_return_code_t::LWMQTT_UNKNOWN_RETURN_CODE)
     Serial.print("Unknown Return Code");
 }
+#endif
 
 void connectToMqtt(bool nonBlocking = false)
 {
@@ -125,12 +180,20 @@ void connectToMqtt(bool nonBlocking = false)
       Serial.println("connected!");
       tkReconnectMQTT.detach();
       if (!client.subscribe(MQTT_SUB_TOPIC))
+#ifdef USE_PUB_SUB
+        pubSubErr(client.state());
+#else
         lwMQTTErr(client.lastError());
+#endif
     }
     else
     {
       Serial.print("failed, reason -> ");
+#ifdef USE_PUB_SUB
+      pubSubErr(client.state());
+#else
       lwMQTTErrConnection(client.returnCode());
+#endif
       if (!nonBlocking)
       {
         Serial.println(" < try again in 5 seconds");
@@ -191,8 +254,13 @@ void sendData(void)
   Serial.println();
   char shadow[measureJson(root) + 1];
   serializeJson(root, shadow, sizeof(shadow));
+#ifdef USE_PUB_SUB
+  if (!client.publish(MQTT_PUB_TOPIC, shadow, false))
+    pubSubErr(client.state());
+#else
   if (!client.publish(MQTT_PUB_TOPIC, shadow, false, 0))
     lwMQTTErr(client.lastError());
+#endif
 }
 
 void setup()
@@ -224,9 +292,13 @@ void setup()
   net.setClientRSACert(&client_crt, &key);
 #endif
 
+#ifdef USE_PUB_SUB
+  client.setServer(MQTT_HOST, MQTT_PORT);
+  client.setCallback(messageReceivedPubSub);
+#else
   client.begin(MQTT_HOST, MQTT_PORT, net);
   client.onMessage(messageReceived);
-
+#endif
   connectToMqtt();
 }
 

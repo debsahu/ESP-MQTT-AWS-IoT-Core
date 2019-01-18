@@ -6,7 +6,7 @@
 #error Platform not supported
 #endif
 #include <WiFiClientSecure.h>
-#include <MQTT.h>
+#include <PubSubClient.h>
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson (use v6.xx)
 #include <time.h>
 #include <Ticker.h>
@@ -35,7 +35,7 @@ WiFiClientSecure net;
 #else
 BearSSL::WiFiClientSecure net;
 #endif
-MQTTClient client;
+PubSubClient client(net);
 Ticker tkReconnectMQTT;
 
 unsigned long lastMillis = 0;
@@ -60,59 +60,40 @@ void NTPConnect(void)
   Serial.print(asctime(&timeinfo));
 }
 
-void messageReceived(String &topic, String &payload)
+void messageReceived(char *topic, byte *payload, unsigned int length)
 {
-  Serial.println("Recieved [" + topic + "]: " + payload);
+  Serial.print("Received [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  for (int i = 0; i < length; i++)
+  {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
 }
 
-void lwMQTTErr(lwmqtt_err_t reason)
+void pubSubErr(int8_t MQTTErr)
 {
-  if (reason == lwmqtt_err_t::LWMQTT_SUCCESS)
-    Serial.print("Success");
-  else if (reason == lwmqtt_err_t::LWMQTT_BUFFER_TOO_SHORT)
-    Serial.print("Buffer too short");
-  else if (reason == lwmqtt_err_t::LWMQTT_VARNUM_OVERFLOW)
-    Serial.print("Varnum overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_CONNECT)
-    Serial.print("Network failed connect");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_TIMEOUT)
-    Serial.print("Network timeout");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_READ)
-    Serial.print("Network failed read");
-  else if (reason == lwmqtt_err_t::LWMQTT_NETWORK_FAILED_WRITE)
-    Serial.print("Network failed write");
-  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_OVERFLOW)
-    Serial.print("Remaining length overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_REMAINING_LENGTH_MISMATCH)
-    Serial.print("Remaining length mismatch");
-  else if (reason == lwmqtt_err_t::LWMQTT_MISSING_OR_WRONG_PACKET)
-    Serial.print("Missing or wrong packet");
-  else if (reason == lwmqtt_err_t::LWMQTT_CONNECTION_DENIED)
-    Serial.print("Connection denied");
-  else if (reason == lwmqtt_err_t::LWMQTT_FAILED_SUBSCRIPTION)
-    Serial.print("Failed subscription");
-  else if (reason == lwmqtt_err_t::LWMQTT_SUBACK_ARRAY_OVERFLOW)
-    Serial.print("Suback array overflow");
-  else if (reason == lwmqtt_err_t::LWMQTT_PONG_TIMEOUT)
-    Serial.print("Pong timeout");
-}
-
-void lwMQTTErrConnection(lwmqtt_return_code_t reason)
-{
-  if (reason == lwmqtt_return_code_t::LWMQTT_CONNECTION_ACCEPTED)
-    Serial.print("Connection Accepted");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_UNACCEPTABLE_PROTOCOL)
-    Serial.print("Unacceptable Protocol");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_IDENTIFIER_REJECTED)
-    Serial.print("Identifier Rejected");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_SERVER_UNAVAILABLE)
-    Serial.print("Server Unavailable");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_BAD_USERNAME_OR_PASSWORD)
-    Serial.print("Bad UserName/Password");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_NOT_AUTHORIZED)
-    Serial.print("Not Authorized");
-  else if (reason == lwmqtt_return_code_t::LWMQTT_UNKNOWN_RETURN_CODE)
-    Serial.print("Unknown Return Code");
+  if (MQTTErr == MQTT_CONNECTION_TIMEOUT)
+    Serial.print("Connection tiemout");
+  else if (MQTTErr == MQTT_CONNECTION_LOST)
+    Serial.print("Connection lost");
+  else if (MQTTErr == MQTT_CONNECT_FAILED)
+    Serial.print("Connect failed");
+  else if (MQTTErr == MQTT_DISCONNECTED)
+    Serial.print("Disconnected");
+  else if (MQTTErr == MQTT_CONNECTED)
+    Serial.print("Connected");
+  else if (MQTTErr == MQTT_CONNECT_BAD_PROTOCOL)
+    Serial.print("Connect bad protocol");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CLIENT_ID)
+    Serial.print("Connect bad Client-ID");
+  else if (MQTTErr == MQTT_CONNECT_UNAVAILABLE)
+    Serial.print("Connect unavailable");
+  else if (MQTTErr == MQTT_CONNECT_BAD_CREDENTIALS)
+    Serial.print("Connect bad credentials");
+  else if (MQTTErr == MQTT_CONNECT_UNAUTHORIZED)
+    Serial.print("Connect unauthorized");
 }
 
 void connectToMqtt(bool nonBlocking = false)
@@ -125,12 +106,12 @@ void connectToMqtt(bool nonBlocking = false)
       Serial.println("connected!");
       tkReconnectMQTT.detach();
       if (!client.subscribe(MQTT_SUB_TOPIC))
-        lwMQTTErr(client.lastError());
+        pubSubErr(client.state());
     }
     else
     {
       Serial.print("failed, reason -> ");
-      lwMQTTErrConnection(client.returnCode());
+      pubSubErr(client.state());
       if (!nonBlocking)
       {
         Serial.println(" < try again in 5 seconds");
@@ -191,8 +172,8 @@ void sendData(void)
   Serial.println();
   char shadow[measureJson(root) + 1];
   serializeJson(root, shadow, sizeof(shadow));
-  if (!client.publish(MQTT_PUB_TOPIC, shadow, false, 0))
-    lwMQTTErr(client.lastError());
+  if (!client.publish(MQTT_PUB_TOPIC, shadow, false))
+    pubSubErr(client.state());
 }
 
 void setup()
@@ -224,8 +205,8 @@ void setup()
   net.setClientRSACert(&client_crt, &key);
 #endif
 
-  client.begin(MQTT_HOST, MQTT_PORT, net);
-  client.onMessage(messageReceived);
+  client.setServer(MQTT_HOST, MQTT_PORT);
+  client.setCallback(messageReceived);
 
   connectToMqtt();
 }
