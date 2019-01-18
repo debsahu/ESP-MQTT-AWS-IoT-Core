@@ -41,7 +41,7 @@ BearSSL::WiFiClientSecure net;
 
 #ifdef USE_PUB_SUB
 #include <PubSubClient.h>
-#ifdef PIO_PLATFORM // PIO has issues, needs MQTT.h definition or else freaks out
+#if defined(USE_PUB_SUB) and defined(PIO_PLATFORM) // PIO has issues, needs MQTT.h definition or else freaks out
 #include <MQTT.h>
 #endif
 PubSubClient client(net);
