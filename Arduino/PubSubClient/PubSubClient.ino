@@ -10,63 +10,11 @@
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson (use v6.xx)
 #include <time.h>
 #include <Ticker.h>
+#define emptyString String()
 
-#include "secrets.h" //comment to fill out values here ▼
-
-#ifndef SECRET
-const char ssid[] = "WiFiSSID";
-const char pass[] = "WiFiPASS";
-
-#define THINGNAME "WelcomeTest"
-
-int8_t TIME_ZONE = -5; //NYC(USA): -5 UTC
-//#define USE_SUMMER_TIME_DST  //uncomment to use DST
-
-const char MQTT_HOST[] = "xxxxxxxxx.iot.us-east-1.amazonaws.com";
-
-// Obtain First CA certificate for Amazon AWS
-// https://docs.aws.amazon.com/iot/latest/developerguide/managing-device-certs.html#server-authentication
-// Copy contents from CA certificate here ▼
-static const char cacert[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END CERTIFICATE-----
-)EOF";
-
-// Copy contents from XXXXXXXX-certificate.pem.crt here ▼
-static const char client_cert[] PROGMEM = R"KEY(
------BEGIN CERTIFICATE-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END CERTIFICATE-----
-)KEY";
-
-// Copy contents from  XXXXXXXX-private.pem.key here ▼
-static const char privkey[] PROGMEM = R"KEY(
------BEGIN RSA PRIVATE KEY-----
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
------END RSA PRIVATE KEY-----
-)KEY";
-
-#endif
-//////////////////////////////////////////////////////
+//Follow instructions from https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/README.md
+//Enter values in secrets.h ▼
+#include "secrets.h"
 
 #if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR == 7)
 #error "Install ArduinoJson v6.7.0-beta"
@@ -127,25 +75,25 @@ void messageReceived(char *topic, byte *payload, unsigned int length)
 void pubSubErr(int8_t MQTTErr)
 {
   if (MQTTErr == MQTT_CONNECTION_TIMEOUT)
-    Serial.println("Connection tiemout");
+    Serial.print("Connection tiemout");
   else if (MQTTErr == MQTT_CONNECTION_LOST)
-    Serial.println("Connection lost");
+    Serial.print("Connection lost");
   else if (MQTTErr == MQTT_CONNECT_FAILED)
-    Serial.println("Connect failed");
+    Serial.print("Connect failed");
   else if (MQTTErr == MQTT_DISCONNECTED)
-    Serial.println("Disconnected");
+    Serial.print("Disconnected");
   else if (MQTTErr == MQTT_CONNECTED)
-    Serial.println("Connected");
+    Serial.print("Connected");
   else if (MQTTErr == MQTT_CONNECT_BAD_PROTOCOL)
-    Serial.println("Connect bad protocol");
+    Serial.print("Connect bad protocol");
   else if (MQTTErr == MQTT_CONNECT_BAD_CLIENT_ID)
-    Serial.println("Connect bad Client-ID");
+    Serial.print("Connect bad Client-ID");
   else if (MQTTErr == MQTT_CONNECT_UNAVAILABLE)
-    Serial.println("Connect unavailable");
+    Serial.print("Connect unavailable");
   else if (MQTTErr == MQTT_CONNECT_BAD_CREDENTIALS)
-    Serial.println("Connect bad credentials");
+    Serial.print("Connect bad credentials");
   else if (MQTTErr == MQTT_CONNECT_UNAUTHORIZED)
-    Serial.println("Connect unauthorized");
+    Serial.print("Connect unauthorized");
 }
 
 void connectToMqtt(bool nonBlocking = false)
@@ -181,13 +129,15 @@ void connectToMqtt(bool nonBlocking = false)
 
 void connectToWiFi(String init_str)
 {
-  Serial.print(init_str);
+  if (init_str != emptyString)
+    Serial.print(init_str);
   while (WiFi.status() != WL_CONNECTED)
   {
     Serial.print(".");
     delay(1000);
   }
-  Serial.println("ok!");
+  if (init_str != emptyString)
+    Serial.println("ok!");
 }
 
 void checkWiFiThenMQTT(void)
@@ -198,7 +148,7 @@ void checkWiFiThenMQTT(void)
 
 void checkWiFiThenMQTTNonBlocking(void)
 {
-  connectToWiFi("Checking WiFi");
+  connectToWiFi(emptyString);
   if (!tkReconnectMQTT.active())
     tkReconnectMQTT.attach(5, connectToMqtt, true);
 }
@@ -266,9 +216,14 @@ void loop()
   now = time(nullptr);
   if (!client.connected())
   {
+//Not sure why reconnecting to AWS via MQTT does not work correctly on ESP8266
+//Something to do with BearSSL::WiFiClientSecure, go figure!
+#ifdef ESP32
+    checkWiFiThenMQTT(); //either methods should be ok
+    //checkWiFiThenMQTTNonBlocking(); //either methods should be ok
+#else
     checkWiFiThenReboot();
-    //checkWiFiThenMQTT(); //not sure why reconnecting to AWS via MQTT does not work correctly
-    //checkWiFiThenMQTTNonBlocking(); //not sure why recoinnecting to AWS via MQTT does not work correctly
+#endif
   }
   else
   {
