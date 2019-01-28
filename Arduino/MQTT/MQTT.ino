@@ -9,7 +9,6 @@
 #include <MQTT.h>
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson (use v6.xx)
 #include <time.h>
-#include <Ticker.h>
 #define emptyString String()
 
 //Follow instructions from https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/README.md
@@ -32,8 +31,13 @@ uint8_t DST = 0;
 
 WiFiClientSecure net;
 
+#ifdef ESP8266
+BearSSL::X509List cert(cacert);
+BearSSL::X509List client_crt(client_cert);
+BearSSL::PrivateKey key(privkey);
+#endif
+
 MQTTClient client;
-Ticker tkReconnectMQTT;
 
 unsigned long lastMillis = 0;
 time_t now;
@@ -120,7 +124,6 @@ void connectToMqtt(bool nonBlocking = false)
     if (client.connect(THINGNAME))
     {
       Serial.println("connected!");
-      tkReconnectMQTT.detach();
       if (!client.subscribe(MQTT_SUB_TOPIC))
         lwMQTTErr(client.lastError());
     }
@@ -162,11 +165,16 @@ void checkWiFiThenMQTT(void)
   connectToMqtt();
 }
 
+unsigned long previousMillis = 0;
+const long interval = 5000;
+
 void checkWiFiThenMQTTNonBlocking(void)
 {
   connectToWiFi(emptyString);
-  if (!tkReconnectMQTT.active())
-    tkReconnectMQTT.attach(5, connectToMqtt, true);
+  if (millis() - previousMillis >= interval && !client.connected()) {
+    previousMillis = millis();
+    connectToMqtt(true);
+  }
 }
 
 void checkWiFiThenReboot(void)
@@ -214,9 +222,6 @@ void setup()
   net.setCertificate(client_cert);
   net.setPrivateKey(privkey);
 #else
-  BearSSL::X509List cert(cacert);
-  BearSSL::X509List client_crt(client_cert);
-  BearSSL::PrivateKey key(privkey);
   net.setTrustAnchors(&cert);
   net.setClientRSACert(&client_crt, &key);
 #endif
@@ -232,14 +237,9 @@ void loop()
   now = time(nullptr);
   if (!client.connected())
   {
-//Not sure why reconnecting to AWS via MQTT does not work correctly on ESP8266
-//Something to do with BearSSL::WiFiClientSecure, go figure!
-#ifdef ESP32
-    checkWiFiThenMQTT(); //either methods should be ok
-    //checkWiFiThenMQTTNonBlocking(); //either methods should be ok
-#else
-    checkWiFiThenReboot();
-#endif
+    checkWiFiThenMQTT();
+    //checkWiFiThenMQTTNonBlocking();
+    //checkWiFiThenReboot();
   }
   else
   {
