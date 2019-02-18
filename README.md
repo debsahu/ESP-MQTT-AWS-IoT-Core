@@ -5,7 +5,7 @@ Arduino examples of connecting ESP8266/ESP32 to AWS IOT Core
 
 ----------------
 ## Youtube
-[![ESP-MQTT-AWS-IoT-Core](https://img.youtube.com/vi/xxxxxxxxxx/0.jpg)](https://www.youtube.com/watch?v=xxxxxxxxxxxx)
+[![ESP-MQTT-AWS-IoT-Core](https://img.youtube.com/vi/OzNlSk7VU68/0.jpg)](https://www.youtube.com/watch?v=OzNlSk7VU68)
 
 ## AWS Instructions
 
