@@ -15,8 +15,8 @@
 //Enter values in secrets.h ▼
 #include "secrets.h"
 
-#if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR == 7)
-#error "Install ArduinoJson v6.7.0-beta"
+#if !(ARDUINOJSON_VERSION_MAJOR == 6 and ARDUINOJSON_VERSION_MINOR >= 7)
+#error "Install ArduinoJson v6.7.0-beta or higher"
 #endif
 
 const int MQTT_PORT = 8883;
@@ -167,7 +167,7 @@ void checkWiFiThenReboot(void)
 
 void sendData(void)
 {
-  DynamicJsonDocument jsonBuffer;
+  DynamicJsonDocument jsonBuffer(JSON_OBJECT_SIZE(3) + 100);
   JsonObject root = jsonBuffer.to<JsonObject>();
   JsonObject state = root.createNestedObject("state");
   JsonObject state_reported = state.createNestedObject("reported");
