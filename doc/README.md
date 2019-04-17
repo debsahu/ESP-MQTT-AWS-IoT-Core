@@ -9,7 +9,7 @@ Goto [AWS IoT Core](https://console.aws.amazon.com/iot) on your [AWS console](ht
 
 2. Create a Policy details
 - Provide a **Name**
-- **Action: `iot:\*`**
+- **Action: `iot:*`**
 - **Resource ARM: `*`**
 - **Effect: Allow**
 ![2-policy-create](https://github.com/debsahu/ESP-MQTT-AWS-IoT-Core/blob/master/doc/2-policy-create.png)
